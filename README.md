@@ -106,10 +106,10 @@ Jackal will automatically:
 Jackal uses a shell-based configuration file:
 
 ```bash
-CONFIG_FILE="/home/jamesb/dev/container-storage/repos/jackal/jackal-config.sh"
+CONFIG_FILE="~/jackal/jackal-config"
 ```
 
-Example `jackal-config.sh`:
+Example `jackal-config`:
 
 ```bash
 # Display output to manage (kscreen-doctor)
