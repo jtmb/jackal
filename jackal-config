@@ -14,6 +14,8 @@ HDR_ENABLED=true      # Dissable HDR in-game only
 
 # Services to manage (stop before and start after game session)
 SERVICES_TO_MANAGE=("docker")
-  # Add more services here, e.g.:
-  # - containerd
-  # - my-background-service
+# Add more services here, e.g.:
+  # SERVICES_TO_MANAGE=(
+  #     "docker"
+  #     "pulseaudio"
+  # )
