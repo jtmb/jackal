@@ -1,0 +1,139 @@
+#!/usr/bin/env bash
+set -e
+
+# ============================
+# Jackal – Game Boost Script
+# ============================
+# Log file
+LOG_FILE="$HOME/jackal.log"
+exec > >(tee -a "$LOG_FILE") 2>&1
+
+echo "===== Jackal run started at $(date) ====="
+
+# Default values
+OUTPUT=1
+VRR_ENABLED=true
+HDR_ENABLED=true
+SERVICES_TO_MANAGE=()
+
+# === CONFIG FILE ===
+CONFIG_FILE="/home/jamesb/dev/container-storage/repos/jackal/jackal-config"
+if [[ -f "$CONFIG_FILE" ]]; then
+    echo "Loading config from $CONFIG_FILE"
+    source "$CONFIG_FILE"
+else
+    echo "Config file not found: $CONFIG_FILE"
+fi
+
+# Normalize boolean values
+VRR_ENABLED=$(echo "${VRR_ENABLED:-true}" | tr '[:upper:]' '[:lower:]')
+HDR_ENABLED=$(echo "${HDR_ENABLED:-true}" | tr '[:upper:]' '[:lower:]')
+
+# Debug output
+echo "Jackal config:"
+echo "  OUTPUT=$OUTPUT"
+echo "  VRR_ENABLED=$VRR_ENABLED"
+echo "  HDR_ENABLED=$HDR_ENABLED"
+echo "  SERVICES_TO_MANAGE=(${SERVICES_TO_MANAGE[*]})"
+
+declare -A ORIGINAL_SERVICE_STATES
+
+# Flip logic: "false" means disable in-game
+VRR_DISABLE_IN_GAME=false
+HDR_DISABLE_IN_GAME=false
+[[ "$VRR_ENABLED" == "false" ]] && VRR_DISABLE_IN_GAME=true
+[[ "$HDR_ENABLED" == "false" ]] && HDR_DISABLE_IN_GAME=true
+
+echo "  VRR_DISABLE_IN_GAME=$VRR_DISABLE_IN_GAME"
+echo "  HDR_DISABLE_IN_GAME=$HDR_DISABLE_IN_GAME"
+
+# ============================
+# VRR functions
+# ============================
+disable_vrr() {
+    if [[ "$VRR_DISABLE_IN_GAME" == "true" ]]; then
+        echo "Disabling VRR on output $OUTPUT..."
+        kscreen-doctor output."$OUTPUT".vrrpolicy.never || echo "Failed to disable VRR"
+    fi
+}
+
+enable_vrr() {
+    if [[ "$VRR_DISABLE_IN_GAME" == "true" ]]; then
+        echo "Restoring VRR on output $OUTPUT..."
+        kscreen-doctor output."$OUTPUT".vrrpolicy.automatic || echo "Failed to restore VRR"
+    fi
+}
+
+# ============================
+# HDR functions
+# ============================
+disable_hdr() {
+    if [[ "$HDR_DISABLE_IN_GAME" == "true" ]]; then
+        echo "Disabling HDR on output $OUTPUT..."
+        kscreen-doctor output."$OUTPUT".hdr.disable || echo "Failed to disable HDR"
+    fi
+}
+
+enable_hdr() {
+    if [[ "$HDR_DISABLE_IN_GAME" == "true" ]]; then
+        echo "Restoring HDR on output $OUTPUT..."
+        kscreen-doctor output."$OUTPUT".hdr.enable || echo "Failed to restore HDR"
+    fi
+}
+
+# ============================
+# Services
+# ============================
+disable_services() {
+    for svc in "${SERVICES_TO_MANAGE[@]}"; do
+        [[ -z "$svc" ]] && continue
+        echo "Stopping service: $svc"
+        sudo -n systemctl stop "$svc" --no-block && echo "$svc stop command issued" || echo "Failed to stop $svc"
+        sleep 0.5
+        if systemctl is-active --quiet "$svc"; then
+            echo "$svc still active, sending kill..."
+            sudo -n systemctl kill "$svc" && echo "$svc killed" || echo "Failed to kill $svc"
+        else
+            echo "$svc successfully stopped"
+        fi
+        ORIGINAL_SERVICE_STATES[$svc]="active"
+    done
+}
+
+restore_services() {
+    for svc in "${SERVICES_TO_MANAGE[@]}"; do
+        [[ -z "$svc" ]] && continue
+        if [[ "${ORIGINAL_SERVICE_STATES[$svc]}" == "active" ]]; then
+            echo "Restoring service: $svc"
+            sudo -n systemctl start "$svc" && echo "$svc restored" || echo "Failed to restore $svc"
+        fi
+    done
+}
+
+# ============================
+# Cleanup trap
+# ============================
+cleanup() {
+    echo "Cleaning up at $(date)..."
+    enable_vrr
+    enable_hdr
+    restore_services
+}
+trap cleanup EXIT INT TERM
+
+# ============================
+# Prep
+# ============================
+disable_vrr
+disable_hdr
+disable_services
+
+# ============================
+# Run the game (foreground)
+# ============================
+echo "Starting game: $*"
+"$@" &
+GAME_PID=$!
+wait "$GAME_PID"
+
+echo "===== Jackal run finished at $(date) ====="

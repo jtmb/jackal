@@ -1,0 +1,19 @@
+
+#!/usr/bin/env bash
+# ============================
+# Jackal – Game Boost Script Configuration
+# ============================
+
+# Display number to manage VRR and HDR on (matches kscreen-doctor output)
+OUTPUT=2             # Run 'kscreen-doctor -o' to list displays
+
+# VRR management
+VRR_ENABLED=false      #  Dissable VRR in-game only
+# HDR management
+HDR_ENABLED=true      # Dissable HDR in-game only
+
+# Services to manage (stop before and start after game session)
+SERVICES_TO_MANAGE=("docker")
+  # Add more services here, e.g.:
+  # - containerd
+  # - my-background-service
